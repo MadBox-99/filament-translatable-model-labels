@@ -48,7 +48,7 @@ opt-in itself.
 
 ## Design
 
-### 1. Trait `TranslatesModelLabels`
+### 1. Trait `TranslatesFilamentModelLabels`
 
 Using the trait is the opt-in, so no extra toggle is needed (simpler than a core
 version would be).
@@ -60,7 +60,7 @@ use Illuminate\Support\Str;
 use function Filament\Support\get_model_label;
 use function Filament\Support\locale_has_pluralization;
 
-trait TranslatesModelLabels
+trait TranslatesFilamentModelLabels
 {
     public static function getModelLabel(): string
     {
@@ -91,7 +91,7 @@ Notes:
   unchanged, so navigation labels and the list-page table heading follow
   automatically — one trait covers all three surfaces.
 
-### 2. Optional base class `TranslatableResource`
+### 2. Optional base class `TranslatableFilamentResource`
 
 For consumers who prefer inheritance over a `use` statement:
 
@@ -99,11 +99,11 @@ For consumers who prefer inheritance over a `use` statement:
 namespace MadBox99\FilamentTranslatableModelLabels;
 
 use Filament\Resources\Resource;
-use MadBox99\FilamentTranslatableModelLabels\Concerns\TranslatesModelLabels;
+use MadBox99\FilamentTranslatableModelLabels\Concerns\TranslatesFilamentModelLabels;
 
-abstract class TranslatableResource extends Resource
+abstract class TranslatableFilamentResource extends Resource
 {
-    use TranslatesModelLabels;
+    use TranslatesFilamentModelLabels;
 }
 ```
 
@@ -134,14 +134,14 @@ Apply once on a shared base Resource so it is never repeated per Resource:
 // app/Filament/Resources/Resource.php (the project's shared base)
 abstract class Resource extends \Filament\Resources\Resource
 {
-    use \MadBox99\FilamentTranslatableModelLabels\Concerns\TranslatesModelLabels;
+    use \MadBox99\FilamentTranslatableModelLabels\Concerns\TranslatesFilamentModelLabels;
 }
 ```
 
 or extend the package's base class:
 
 ```php
-class IssueResource extends \MadBox99\FilamentTranslatableModelLabels\TranslatableResource { ... }
+class IssueResource extends \MadBox99\FilamentTranslatableModelLabels\TranslatableFilamentResource { ... }
 ```
 
 Translations in the app's `lang/hu.json`:
@@ -174,13 +174,13 @@ filament-translatable-model-labels/
 ├── README.md
 ├── LICENSE
 ├── src/
-│   ├── Concerns/TranslatesModelLabels.php
-│   ├── TranslatableResource.php
+│   ├── Concerns/TranslatesFilamentModelLabels.php
+│   ├── TranslatableFilamentResource.php
 │   └── FilamentTranslatableModelLabelsServiceProvider.php
 ├── tests/
 │   ├── Pest.php
 │   ├── TestCase.php
-│   └── Feature/TranslatesModelLabelsTest.php
+│   └── Feature/TranslatesFilamentModelLabelsTest.php
 ├── docs/                       (this spec)
 └── .github/workflows/tests.yml (CI: Pest + Pint)
 ```
