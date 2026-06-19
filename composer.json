@@ -10,7 +10,11 @@
     "require-dev": {
         "laravel/pint": "^1.0",
         "orchestra/testbench": "^10.0|^11.0",
-        "pestphp/pest": "^4.0"
+        "pestphp/pest": "^4.0",
+        "rector/rector": "^2.0"
+    },
+    "suggest": {
+        "rector/rector": "Run the bundled Rector rule to add the trait to existing resources in bulk."
     },
     "autoload": {
         "psr-4": {

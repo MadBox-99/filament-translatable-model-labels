@@ -60,3 +60,13 @@ it('does not bind the generator when the flag is off', function () {
 
     expect($app->bound(ResourceClassGenerator::class))->toBeFalse();
 });
+
+it('binds the generator by default when no config is set', function () {
+    $app = new Container;
+    Container::setInstance($app);
+    $app->instance('config', new Repository);
+
+    (new FilamentTranslatableModelLabelsServiceProvider($app))->register();
+
+    expect($app->bound(ResourceClassGenerator::class))->toBeTrue();
+});
