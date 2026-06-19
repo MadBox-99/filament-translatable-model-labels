@@ -51,7 +51,7 @@ heading read "Problémák".
 ## How it works
 
 - The singular label is `__(<humanised model name>)` — e.g. `Issue` → `__('issue')`.
-- The plural label is `__(Str::plural(<humanised model name>))` — e.g. `__('issues')`.
+- The plural label is `__(locale_has_pluralization() ? Str::plural(<humanised model name>) : <humanised model name>)` — uses the pluralized form when the active locale supports pluralization, otherwise the singular form.
 - An explicit `$modelLabel` / `$pluralModelLabel` on the Resource still wins.
 - If no translation exists, `__()` returns the key unchanged, so untranslated
   locales behave exactly like stock Filament.
