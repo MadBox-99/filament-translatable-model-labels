@@ -1,149 +1,150 @@
-# Translatable model labels for Filament Resources
+# Translatable model labels for Filament — reusable package
 
 **Date:** 2026-06-19
-**Status:** Design — pending maintainer validation (GitHub Discussion + `@danharrin`)
-**Target:** `filamentphp/filament` (v5), package `filament/filament`
+**Status:** Design — approved direction (reusable package)
+**Package:** `madbox-99/filament-translatable-model-labels` (public, Packagist)
+**Namespace:** `MadBox99\FilamentTranslatableModelLabels`
+**Targets:** Filament v5 (`filament/filament`), PHP 8.4, Laravel 13
 
 ## Problem
 
 Filament derives a Resource's singular and plural labels from the model class
-name (`get_model_label()` → `Str::plural()`). To localise these (e.g. Hungarian),
-each Resource must currently override `getModelLabel()` / `getPluralModelLabel()`
-or set `$modelLabel` / `$pluralModelLabel` by hand. This is repetitive and
-error-prone across many Resources, and the singular/plural handling has to be
-restated per Resource.
+name (`get_model_label()` → `Str::plural()`). To localise them, each Resource
+must override `getModelLabel()` / `getPluralModelLabel()` or set `$modelLabel` /
+`$pluralModelLabel` by hand. This is repetitive across many Resources and the
+singular/plural handling has to be restated per Resource.
 
 We want labels to resolve through Laravel's `__()` translation, keyed off the
-auto-derived model name, so a single `lang/hu.json` entry localises a Resource's
-label everywhere it appears — the "New X" button, the navigation item, and the
-table heading — without per-Resource overrides.
+auto-derived model name, so one `lang/hu.json` entry localises a Resource
+everywhere it appears — the "New X" button, the navigation item, and the table
+heading.
 
 Example: with `{"issue": "probléma", "issues": "problémák"}` in `hu.json`,
-"New issue" becomes "Új probléma" and the "Issues" table/navigation becomes
-"Problémák".
+"New issue" → "Új probléma" and the "Issues" navigation/table heading → "Problémák".
 
-## Why this fits Filament (precedent)
+## Why a package (not a core PR)
 
-The design mirrors two patterns that already exist in the codebase, so it is an
-extension of established convention rather than a new paradigm:
+A core PR was investigated and rejected as a direction. Prior maintainer
+decisions on the exact idea:
 
-1. **`translateLabel()` on components** —
-   `Filament\Tables\Columns\Concerns\HasLabel` (and the equivalents in schemas,
-   actions, filters, query-builder) auto-derive a label and conditionally wrap it
-   in `__()`:
+- **PR [#15975](https://github.com/filamentphp/filament/pull/15975)** (closed) —
+  adding a `translateLabel()` to more surfaces. danharrin: *"I do not want this
+  feature in Filament either. I wish I never allowed `translateLabel()` into
+  Filament in the first place for forms."*
+- **Issue [#9682](https://github.com/filamentphp/filament/issues/9682)** (closed)
+  — request for a toggle to disable label auto-casing; resisted by maintainers.
+- **PR [#8957](https://github.com/filamentphp/filament/pull/8957)** (closed) —
+  translating the plural resource name; maintainers' answer was "override
+  `getPluralModelLabel()` and pass the actual plural."
 
-   ```php
-   protected bool $shouldTranslateLabel = false;
-   public function translateLabel(bool $shouldTranslateLabel = true): static { ... }
-   public function getLabel(): string|Htmlable
-   {
-       $label = $this->evaluate($this->label) ?? /* derive from name */;
-       return $this->shouldTranslateLabel ? __($label) : $label;
-   }
-   ```
+The official maintainer guidance is therefore to override the label methods in
+your own code. This package packages exactly that override so it is written once
+and reused across projects, without depending on framework acceptance.
 
-2. **`titleCaseModelLabel()` on Resources** — the *same file* we are changing,
-   `Filament\Resources\Resource\Concerns\HasLabels`, already uses the static
-   toggle shape we will copy:
-
-   ```php
-   protected static bool $hasTitleCaseModelLabel = true;
-   public static function titleCaseModelLabel(bool $condition = true): void { ... }
-   public static function hasTitleCaseModelLabel(): bool { ... }
-   ```
-
-The feature is `translateLabel()`'s `__()`-wrapping applied to Resource labels,
-gated by a `titleCaseModelLabel()`-style static toggle.
+A classic Filament `Plugin` object is **not** the right mechanism: a plugin
+cannot override the static label methods of arbitrary Resources. A trait
+(applied to a Resource or a shared base Resource) is the correct tool, and is the
+opt-in itself.
 
 ## Design
 
-All changes are in
-`packages/filament/src/Resources/Resource/Concerns/HasLabels.php`.
+### 1. Trait `TranslatesModelLabels`
 
-### 1. Toggle (mirrors `titleCaseModelLabel`)
-
-```php
-protected static bool $shouldTranslateModelLabel = false;
-
-public static function translateModelLabel(bool $condition = true): void
-{
-    static::$shouldTranslateModelLabel = $condition;
-}
-
-public static function shouldTranslateModelLabel(): bool
-{
-    return static::$shouldTranslateModelLabel;
-}
-```
-
-### 2. Singular label (mirrors `translateLabel`)
+Using the trait is the opt-in, so no extra toggle is needed (simpler than a core
+version would be).
 
 ```php
-public static function getModelLabel(): string
+namespace MadBox99\FilamentTranslatableModelLabels\Concerns;
+
+use Illuminate\Support\Str;
+use function Filament\Support\get_model_label;
+use function Filament\Support\locale_has_pluralization;
+
+trait TranslatesModelLabels
 {
-    $label = static::$modelLabel
-        ?? static::getLabel()
-        ?? get_model_label(static::getModel());           // "issue"
-
-    return static::shouldTranslateModelLabel() ? __($label) : $label;   // __('issue')
-}
-```
-
-### 3. Plural label
-
-The plural key is computed from the **untranslated** singular and then
-translated, so the lookup is `__('issues')` rather than pluralising an
-already-translated string:
-
-```php
-public static function getPluralModelLabel(): string
-{
-    if (filled($label = static::$pluralModelLabel ?? static::getPluralLabel())) {
-        return $label;                                    // explicit override wins, unchanged
+    public static function getModelLabel(): string
+    {
+        return static::$modelLabel ?? __(get_model_label(static::getModel()));   // __('issue')
     }
 
-    $base = static::$modelLabel
-        ?? static::getLabel()
-        ?? get_model_label(static::getModel());           // "issue"
+    public static function getPluralModelLabel(): string
+    {
+        if (filled($label = static::$pluralModelLabel)) {
+            return $label;                                                        // explicit override wins
+        }
 
-    $label = locale_has_pluralization() ? Str::plural($base) : $base;   // "issues"
+        $base = static::$modelLabel ?? get_model_label(static::getModel());       // "issue"
 
-    return static::shouldTranslateModelLabel() ? __($label) : $label;   // __('issues')
+        return __(locale_has_pluralization() ? Str::plural($base) : $base);       // __('issues')
+    }
 }
 ```
 
-### 4. Untouched
+Notes:
+- `Filament\Support\get_model_label()` and `locale_has_pluralization()` are
+  public helper functions in `filament/support` — a stable dependency.
+- `$modelLabel` / `$pluralModelLabel` are the existing Resource properties
+  (from Filament's `HasLabels`), so a consumer's explicit override still wins.
+- The plural key is computed from the **untranslated** singular, then translated,
+  so the lookup is `__('issues')` rather than pluralising a translated string.
+- `getTitleCaseModelLabel()` / `getTitleCasePluralModelLabel()` are inherited
+  unchanged, so navigation labels and the list-page table heading follow
+  automatically — one trait covers all three surfaces.
 
-`getTitleCaseModelLabel()` and `getTitleCasePluralModelLabel()` keep wrapping the
-result in `Str::ucwords()`. Because navigation labels and the list-page table
-heading derive from these label methods, a single toggle covers all three
-surfaces (create button, navigation, table heading) — no further changes needed.
+### 2. Optional base class `TranslatableResource`
 
-## Enabling it
+For consumers who prefer inheritance over a `use` statement:
 
-- **One Resource:** set `protected static bool $shouldTranslateModelLabel = true;`
-  or call `static::translateModelLabel()`.
-- **All Resources at once:** set it on the app's shared base `Resource` class
-  that every Resource extends. This solves the original "don't repeat per
-  Resource" goal with a single declaration and needs no additional core surface
-  (no panel-level change required).
+```php
+namespace MadBox99\FilamentTranslatableModelLabels;
 
-## Backwards compatibility
+use Filament\Resources\Resource;
+use MadBox99\FilamentTranslatableModelLabels\Concerns\TranslatesModelLabels;
 
-The toggle defaults to `false`, exactly like `translateLabel()` defaults off, so
-existing apps are unaffected. Even for a Resource that opts in, `__()` returns the
-key unchanged when no translation exists, so an untranslated locale (e.g. English)
-produces output identical to today (`__('issue')` → `'issue'`).
+abstract class TranslatableResource extends Resource
+{
+    use TranslatesModelLabels;
+}
+```
 
-## Known concerns to disclose in the PR
+### 3. ServiceProvider
 
-- **Flat, app-global keys** (`__('issue')`). A maintainer may prefer a namespaced
-  convention to avoid collisions. Mitigation: the behaviour is opt-in, so only
-  Resources that explicitly enable it consult these keys.
-- **Multi-word models** produce keys containing spaces (`BlogPost` → `"blog post"`,
-  `"blog posts"`). This must be documented.
+Minimal Laravel package provider for auto-discovery (and a home for any future
+config). No config is required for the core behaviour.
 
-## Localisation (consumer side, the app's `lang/hu.json`)
+```php
+namespace MadBox99\FilamentTranslatableModelLabels;
+
+use Illuminate\Support\ServiceProvider;
+
+class FilamentTranslatableModelLabelsServiceProvider extends ServiceProvider
+{
+    public function register(): void {}
+    public function boot(): void {}
+}
+```
+
+Registered via composer `extra.laravel.providers` for package auto-discovery.
+
+## Usage (consumer side)
+
+Apply once on a shared base Resource so it is never repeated per Resource:
+
+```php
+// app/Filament/Resources/Resource.php (the project's shared base)
+abstract class Resource extends \Filament\Resources\Resource
+{
+    use \MadBox99\FilamentTranslatableModelLabels\Concerns\TranslatesModelLabels;
+}
+```
+
+or extend the package's base class:
+
+```php
+class IssueResource extends \MadBox99\FilamentTranslatableModelLabels\TranslatableResource { ... }
+```
+
+Translations in the app's `lang/hu.json`:
 
 ```json
 {
@@ -152,30 +153,64 @@ produces output identical to today (`__('issue')` → `'issue'`).
 }
 ```
 
-## Scope of the pull request
+## Backwards compatibility / fallback
 
-1. The `HasLabels` changes above.
-2. Pest tests: translation on/off, and missing-key fallback, for singular, plural,
-   and the rendered table heading.
-3. Documentation: a "Translating model labels" section under the Resources docs.
-4. `vendor/bin/pint` formatting and a green Larastan run.
+`__()` returns the key unchanged when no translation exists, so a Resource using
+the trait in an untranslated locale (e.g. English) produces output identical to
+stock Filament (`__('issue')` → `'issue'`). Only Resources that opt in are
+affected.
 
-## Process (per Filament contributing guide)
+## Known behaviour to document
 
-0. **Validate first (required):** open a GitHub Discussion on
-   `filamentphp/filament`, `@danharrin`, describe the problem and the
-   precedent-mirroring proposal, and confirm suitability **before** writing code.
-1. Fork `filamentphp/filament`; create a local Laravel app; clone the fork into
-   its root (`/filament`); add a path repository for `filament/packages/*` with
-   `"minimum-stability": "dev"`; `composer update`.
-2. Branch, e.g. `feat/translatable-model-labels`.
-3. Implement, test, document, Pint, Larastan.
-4. Open the PR referencing the Discussion.
+- Flat, app-global keys (`__('issue')`). Documented; chosen for simplicity.
+- Multi-word models produce keys with spaces: `BlogPost` → `"blog post"`,
+  `"blog posts"`. Document in the README.
+
+## Repository / package layout
+
+```
+filament-translatable-model-labels/
+├── composer.json
+├── README.md
+├── LICENSE
+├── src/
+│   ├── Concerns/TranslatesModelLabels.php
+│   ├── TranslatableResource.php
+│   └── FilamentTranslatableModelLabelsServiceProvider.php
+├── tests/
+│   ├── Pest.php
+│   ├── TestCase.php
+│   └── Feature/TranslatesModelLabelsTest.php
+├── docs/                       (this spec)
+└── .github/workflows/tests.yml (CI: Pest + Pint)
+```
+
+`composer.json` essentials:
+- `name`: `madbox-99/filament-translatable-model-labels`
+- `require`: `php: ^8.3`, `filament/filament: ^5.0`
+- `require-dev`: `pestphp/pest`, `orchestra/testbench`, `laravel/pint`
+- `autoload` PSR-4: `MadBox99\\FilamentTranslatableModelLabels\\` → `src/`
+- `extra.laravel.providers`: the ServiceProvider
+
+## Tests (Pest, via Orchestra Testbench)
+
+1. Resource using the trait returns the translated singular when the key exists.
+2. Returns the translated plural (`__('issues')`) when the key exists.
+3. Falls back to the stock humanised label when the key is missing.
+4. An explicit `$modelLabel` / `$pluralModelLabel` still wins over translation.
+5. The rendered list-page heading / navigation label reflects the translation.
+
+## Publishing
+
+1. Build the package in this repo (`MadBox-99/filament-translatable-model-labels`).
+2. Green CI (Pest + Pint).
+3. Make the repo public, tag `v1.0.0`.
+4. Submit to Packagist; enable the auto-update webhook.
 
 ## Out of scope (YAGNI)
 
-- Panel-level global switch (`->translateModelLabels()`): superseded by setting
-  the toggle on a shared base Resource class; revisit only if maintainers prefer
-  a panel API.
-- A namespaced key convention: only if requested during review.
-- A Model-side trait/interface for the label: larger API change, not needed.
+- A core PR (rejected direction — see above).
+- A namespaced key convention or configurable key strategy (revisit only on
+  demand).
+- A Model-side trait/interface for the label.
+- A panel-level global switch.
