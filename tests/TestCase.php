@@ -16,6 +16,6 @@ class TestCase extends Orchestra
 
     protected function defineEnvironment($app): void
     {
-        $app['translator']->addJsonPath(__DIR__.'/fixtures/lang');
+        $app['translator']->addJsonPath(__DIR__.'/Fixtures/lang');
     }
 }
