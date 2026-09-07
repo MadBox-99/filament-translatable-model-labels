@@ -24,4 +24,29 @@ return [
 
     'inject_trait_into_generated_resources' => true,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Translation key case
+    |--------------------------------------------------------------------------
+    |
+    | Which case the lookup key is derived in. `lower` (the default) follows
+    | Filament's own convention: `Customer` becomes `__('customer')`, matching the
+    | lower-cased label Filament renders and then capitalises at the call site.
+    |
+    | Set it to `ucfirst` when your app's translation namespace is already
+    | capitalised — which is what Filament produces for FIELD labels, since
+    | `->translateLabel()` keys off `Str::headline()` and yields `Customer`. Without
+    | this, such an app needs a second, lower-cased copy of every noun it has
+    | already translated.
+    |
+    | Only the lookup key changes. An untranslated locale still falls back to
+    | Filament's lower-cased label, so it renders exactly as stock Filament either
+    | way.
+    |
+    | Supported: "lower", "ucfirst"
+    |
+    */
+
+    'key_case' => 'lower',
+
 ];

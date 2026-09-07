@@ -126,6 +126,32 @@ your project.
 - If no translation exists, `__()` returns the key unchanged, so untranslated
   locales behave exactly like stock Filament.
 
+### Capitalised translation keys
+
+By default the key follows Filament's own convention and is lower-cased, because that
+is the case Filament renders and then capitalises at the call site ("Create customer",
+navigation "Customers").
+
+Apps that translate FIELD labels with `->translateLabel()` already have a **capitalised**
+namespace — that helper keys off `Str::headline()`, so `Select::make('customer_id')`
+looks up `__('Customer')`. In such an app the default would mean a second, lower-cased
+copy of every noun you have already translated. Set `key_case` instead:
+
+```php
+// config/filament-translatable-model-labels.php
+return [
+    'key_case' => 'ucfirst',
+];
+```
+
+`Customer` then resolves `__('Customer')` / `__('Customers')`, and `BlogPost` resolves
+`__('Blog post')` / `__('Blog posts')` — only the first word is capitalised, matching
+`Str::headline()`.
+
+Only the **lookup** changes. When the capitalised key has no translation the label falls
+back to Filament's lower-cased one, so an untranslated locale still renders exactly like
+stock Filament.
+
 ### Multi-word models
 
 The key is the humanised, lower-cased model name with spaces, e.g. `BlogPost`
